@@ -1,5 +1,5 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
-import { MedicalDocument, MigraineEntry } from "./data";
+import { MedicalDocument, MigraineEntry, AIAnalysis, StorageService } from "./data";
 import { GEMINI_API_KEY } from "@/config/api-keys";
 
 const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
@@ -7,7 +7,7 @@ const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
 export const GeminiService = {
   async getAIInsights(entries: MigraineEntry[], medicalDocs: MedicalDocument[]) {
     try {
-      const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+      const model = genAI.getGenerativeModel({ model: "gemini-2.5-pro" });
 
       const entriesContext = entries.map(e => (
         `Date: ${e.date}, Pain: ${e.pain}/10, Pressure: ${e.pressure}hPa, Temp: ${e.temp}C, Water: ${e.water}L, Food: ${e.food}, Sleep: ${e.sleepHours}h, Stress: ${e.stressLevel}, Mood: ${e.mood || 'N/A'}`
@@ -41,9 +41,69 @@ export const GeminiService = {
     }
   },
 
-  async getMigrainePrediction(entries: MigraineEntry[], forecast: any[]) {
+  async saveAIAnalysis(content: string): Promise<AIAnalysis> {
+    const now = new Date();
+    const dateStr = now.toLocaleDateString('pl-PL');
+    const timeStr = now.toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit' });
+    
+    const analysis: AIAnalysis = {
+      id: Date.now().toString(),
+      date: dateStr,
+      time: timeStr,
+      timestamp: now.toISOString(),
+      content: content
+    };
+
+    await StorageService.saveAIAnalyses([...await StorageService.loadAIAnalyses(), analysis]);
+    return analysis;
+  },
+
+  async getOverallAnalysis(entries: MigraineEntry[], medicalDocs: MedicalDocument[]) {
     try {
-      const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+      const model = genAI.getGenerativeModel({ model: "gemini-2.5-pro" });
+
+      const entriesContext = entries.map(e => (
+        `Date: ${e.date}, Pain: ${e.pain}/10, Pressure: ${e.pressure}hPa, Temp: ${e.temp}C, Water: ${e.water}L, Food: ${e.food}, Sleep: ${e.sleepHours}h, Stress: ${e.stressLevel}, Mood: ${e.mood || 'N/A'}`
+      )).join('\n');
+
+      const docsContext = medicalDocs.map(d => (
+        `Exam Date: ${d.date}, Content: ${d.content || 'N/A'}`
+      )).join('\n');
+
+      const previousAnalyses = await StorageService.loadAIAnalyses();
+      const analysesContext = previousAnalyses.map(a => `
+        --- Analysis from ${a.date} at ${a.time}:
+        ${a.content}
+      `).join('\n');
+
+      const prompt = `
+        Jesteś ekspertem analizy danych medycznych specjalizującym się w migrenach. 
+        Poniżej znajdują się logi pacjenta, wyniki badań oraz poprzednie analizy AI.
+        
+        LOGI ATAKÓW:
+        ${entriesContext}
+        
+        WYNIKI BADAŃ:
+        ${docsContext}
+        
+        POPRZEDNIE ANALIZY AI:
+        ${analysesContext || 'Brak poprzednich analiz.'}
+        
+        Proszę o kompleksową, całościową analizę wszystkich dostępnych danych z uwzględnieniem trendów i dotychczasowych spostrzeżeń. Podsumuj najważniejsze wnioski i sugeruj konkretne działania.
+      `;
+
+      const result = await model.generateContent(prompt);
+      const response = await result.response;
+      return response.text();
+    } catch (e) {
+      console.error("Overall analysis error:", e);
+      return "Nie udało się wygenerować analizy całościowej. Sprawdź połączenie lub spróbuj ponownie.";
+    }
+  },
+
+ async getMigrainePrediction(entries: MigraineEntry[], forecast: any[]) {
+    try {
+      const model = genAI.getGenerativeModel({ model: "gemini-2.5-pro" });
 
       const historyContext = entries.slice(0, 10).map(e => (
         `Date: ${e.date}, Pain: ${e.pain}, Pressure: ${e.pressure}hPa, Temp: ${e.temp}C`

@@ -12,7 +12,6 @@ import {
   Moon,
   Pill,
   Pizza,
-  Plus,
   Sparkles,
   Sun,
   Thermometer,
@@ -21,9 +20,9 @@ import {
   X,
   Zap,
   ChevronDown,
-  Smile,
-  Coffee
+  Smile
 } from 'lucide-react-native';
+
 import React, { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
@@ -44,26 +43,51 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { MedicalDocument, MigraineEntry, StorageService, WeatherService } from '@/services/data';
 import { FileText } from 'lucide-react-native';
 
-const AccordionItem = ({ title, color, icon, children }: any) => {
+const AccordionItem = ({ title, color, icon, children, onEdit }: any) => {
   const [isOpen, setIsOpen] = useState(false);
+  
+  const handlePress = (e: any) => {
+    e.stopPropagation();
+    setIsOpen(!isOpen);
+  };
+
   return (
-    <View style={{ marginTop: 8, borderRadius: 8, overflow: 'hidden', borderWidth: 1, borderColor: color + '40' }}>
+    <View style={{ flex: 1, borderRadius: 8, overflow: 'hidden', borderWidth: 1, borderColor: color + '40' }}>
       <TouchableOpacity 
-        onPress={() => setIsOpen(!isOpen)} 
-        style={{ backgroundColor: color + '15', padding: 10, flexDirection: 'row', alignItems: 'center', gap: 10 }}
+        onPress={handlePress} 
+        style={{ backgroundColor: color + '15', padding: 8, flexDirection: 'row', alignItems: 'center', gap: 6 }}
       >
         {icon}
-        <ThemedText style={{ color, fontWeight: 'bold', flex: 1, fontSize: 13 }}>{title}</ThemedText>
-        <ChevronDown size={16} color={color} style={{ transform: [{ rotate: isOpen ? '180deg' : '0deg' }] }} />
+        <ThemedText style={{ color, fontWeight: 'bold', flex: 1, fontSize: 12 }}>{title}</ThemedText>
+        <ChevronDown size={14} color={color} style={{ transform: [{ rotate: isOpen ? '-180deg' : '0deg' }] }} />
       </TouchableOpacity>
       {isOpen && (
-        <View style={{ padding: 10, backgroundColor: 'rgba(255,255,255,0.02)' }}>
+        <View style={{ padding: 8, backgroundColor: 'rgba(255,255,255,0.02)' }}>
+          {onEdit && (
+            <TouchableOpacity 
+              onPress={onEdit}
+              style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8, alignSelf: 'flex-end' }}
+            >
+              <Edit2 size={14} color={color} />
+              <ThemedText style={{ color, fontSize: 11 }}>Edytuj</ThemedText>
+            </TouchableOpacity>
+          )}
           {children}
         </View>
       )}
     </View>
   );
 };
+
+
+const FactorGroup = ({ children }: any) => {
+  return (
+    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+      {children}
+    </View>
+  );
+};
+
 
 export default function HomeScreen() {
   const colorScheme = useColorScheme() ?? 'dark';
@@ -510,61 +534,112 @@ export default function HomeScreen() {
                       {item.medName && <Pill size={14} color={theme.tint} />}
                       {item.stressLevel > 5 && <Zap size={14} color={FactorColors.stress} />}
                       {item.activityType && <Activity size={14} color={FactorColors.activity} />}
-                      {item.food && <Coffee size={14} color={FactorColors.diet} />}
+                   {item.food && <Pizza size={14} color={FactorColors.diet} />}
+
                       {(item.environmentSmells || item.environmentLight || item.environmentNoise) && <Eye size={14} color={FactorColors.environment} />}
                       {item.mood && <Smile size={14} color={FactorColors.mood} />}
                     </View>
                   </View>
 
-                  {/* Expanded Content Accordions */}
-                  {expandedEntryId === item.id && (
-                    <View style={{ marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.1)' }}>
-                      <ThemedText style={{ fontStyle: 'italic', marginBottom: 8, fontSize: 12, opacity: 0.6 }}>Opcje i szczegóły wpisu:</ThemedText>
-                      
-                      {item.stressLevel > 0 && (
-                        <AccordionItem title="Stres" color={FactorColors.stress} icon={<Zap size={16} color={FactorColors.stress} />}>
-                          <ThemedText>Poziom stresu: {item.stressLevel}/10</ThemedText>
-                        </AccordionItem>
-                      )}
+          {/* Expanded Content Accordions */}
+                   {expandedEntryId === item.id && (
+                      <View style={{ marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.1)' }}>
+                        <ThemedText style={{ fontStyle: 'italic', marginBottom: 8, fontSize: 12, opacity: 0.6 }}>Opcje i szczegóły wpisu:</ThemedText>
+                        
+<FactorGroup>
+              {!!item.water && (
+                <AccordionItem 
+                  title="Nawodnienie" 
+                  color="#60a5fa" 
+                  icon={<Droplets size={14} color="#60a5fa" />}
+                  onEdit={() => openModal(item)}
+                >
+                  <ThemedText>{item.water}L</ThemedText>
+                </AccordionItem>
+              )}
+            {item.mood && (
+                <AccordionItem 
+                  title="Samopoczucie" 
+                  color={FactorColors.mood} 
+                  icon={<Smile size={14} color={FactorColors.mood} />}
+                  onEdit={() => openModal(item)}
+                >
+                  <ThemedText>{item.mood}</ThemedText>
+                </AccordionItem>
+              )}
+            </FactorGroup>
 
-                      {(item.environmentSmells || item.environmentLight || item.environmentNoise) && (
-                        <AccordionItem title="Otoczenie" color={FactorColors.environment} icon={<Eye size={16} color={FactorColors.environment} />}>
-                          {item.environmentSmells && <ThemedText>• Intensywne zapachy</ThemedText>}
-                          {item.environmentLight && <ThemedText>• Rażące światło</ThemedText>}
-                          {item.environmentNoise && <ThemedText>• Hałas</ThemedText>}
-                        </AccordionItem>
-                      )}
+<FactorGroup>
+            {!!item.food && (
+               <AccordionItem 
+                 title="Dieta i używki" 
+                 color={FactorColors.diet} 
+                 icon={<Pizza size={14} color={FactorColors.diet} />}
+                 onEdit={() => openModal(item)}
+               >
+                 <ThemedText>{item.food}</ThemedText>
+               </AccordionItem>
+             )}
+              {item.stressLevel !== undefined || item.stressPreviousDay !== undefined ? (
+                <AccordionItem 
+                  title="Stres" 
+                  color={FactorColors.stress} 
+                  icon={<Zap size={14} color={FactorColors.stress} />}
+                  onEdit={() => openModal(item)}
+                >
+                  {item.stressLevel !== undefined && <ThemedText>Dziś: {item.stressLevel}/10</ThemedText>}
+                  {item.stressPreviousDay !== undefined && <ThemedText>Wczoraj: {item.stressPreviousDay}/10</ThemedText>}
+                </AccordionItem>
+              ) : null}
+            </FactorGroup>
 
-                      {!!item.food && (
-                        <AccordionItem title="Dieta i Używki" color={FactorColors.diet} icon={<Coffee size={16} color={FactorColors.diet} />}>
-                          <ThemedText>{item.food}</ThemedText>
-                        </AccordionItem>
-                      )}
+<FactorGroup>
+              {!!item.medName && (
+                <AccordionItem 
+                  title="Leki i suplementy" 
+                  color={theme.tint} 
+                  icon={<Pill size={14} color={theme.tint} />}
+                  onEdit={() => openModal(item)}
+                >
+                  <ThemedText>{item.medName}</ThemedText>
+                </AccordionItem>
+              )}
+              {!!item.sleepHours && (
+                <AccordionItem 
+                  title="Sen i regeneracja" 
+                  color={FactorColors.sleep} 
+                  icon={<Moon size={14} color={FactorColors.sleep} />}
+                  onEdit={() => openModal(item)}
+                >
+                  <ThemedText>{item.sleepHours}h</ThemedText>
+                </AccordionItem>
+              )}
+            </FactorGroup>
 
-                      {!!item.mood && (
-                        <AccordionItem title="Samopoczucie" color={FactorColors.mood} icon={<Smile size={16} color={FactorColors.mood} />}>
-                          <ThemedText>{item.mood}</ThemedText>
-                        </AccordionItem>
-                      )}
+<FactorGroup>
+              {(item.environmentSmells || item.environmentLight || item.environmentNoise) && (
+                <AccordionItem 
+                  title="Otoczenie" 
+                  color={FactorColors.environment} 
+                  icon={<Eye size={14} color={FactorColors.environment} />}
+                  onEdit={() => openModal(item)}
+                >
+                  {item.environmentSmells && <ThemedText>• Zapachy: {item.environmentSmells}</ThemedText>}
+                  {item.environmentLight && <ThemedText>• Światło: {item.environmentLight}</ThemedText>}
+                  {item.environmentNoise && <ThemedText>• Hałas: {item.environmentNoise}</ThemedText>}
+                </AccordionItem>
+              )}
+            </FactorGroup>
 
-                      {!!item.sleepHours && (
-                        <AccordionItem title="Higiena Snu" color={FactorColors.sleep} icon={<Moon size={16} color={FactorColors.sleep} />}>
-                          <ThemedText>Przespane godziny: {item.sleepHours}h</ThemedText>
-                        </AccordionItem>
-                      )}
 
-                      {!!item.medName && (
-                        <AccordionItem title="Leki" color={theme.tint} icon={<Pill size={16} color={theme.tint} />}>
-                          <ThemedText>{item.medName}</ThemedText>
-                        </AccordionItem>
-                      )}
-                      
-                      <TouchableOpacity style={{ marginTop: 16, alignSelf: 'flex-end', flexDirection: 'row', alignItems: 'center', gap: 5 }} onPress={() => openModal(item)}>
-                        <Edit2 size={16} color={theme.tint} />
-                        <ThemedText style={{ color: theme.tint, fontWeight: 'bold' }}>Edytuj wpis</ThemedText>
-                      </TouchableOpacity>
-                    </View>
-                  )}
+                       <TouchableOpacity style={{ marginTop: 16, alignSelf: 'flex-end', flexDirection: 'row', alignItems: 'center', gap: 5 }} onPress={() => openModal(item)}>
+                          <Edit2 size={16} color={theme.tint} />
+                          <ThemedText style={{ color: theme.tint, fontWeight: 'bold' }}>Edytuj wpis</ThemedText>
+                        </TouchableOpacity>
+                      </View>
+                    )}
+
+
                 </Pressable>
               )
             ))
@@ -985,10 +1060,16 @@ const styles = StyleSheet.create({
     marginTop: 4,
     fontWeight: '500',
   },
-  mutedTextSmall: {
+   mutedTextSmall: {
     fontSize: 10,
     opacity: 0.4,
     fontStyle: 'italic',
     marginTop: 8,
   },
+  factorsRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 8,
+  },
 });
+

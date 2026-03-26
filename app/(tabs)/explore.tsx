@@ -6,7 +6,8 @@ import {
   Dimensions,
   ActivityIndicator,
   RefreshControl,
-  TouchableOpacity
+  TouchableOpacity,
+  Alert
 } from 'react-native';
 import { LineChart } from 'react-native-chart-kit';
 import { useFocusEffect } from 'expo-router';
@@ -14,23 +15,22 @@ import {
   ChartBar, 
   TrendingUp, 
   Zap, 
-  AlertCircle,
   Sparkles,
-  RefreshCcw,
   Wind,
   Droplets,
   Moon,
   Eye,
-  Smile
+  Smile,
+  FileText
 } from 'lucide-react-native';
-
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Colors, FactorColors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { StorageService, MigraineEntry, MedicalDocument } from '@/services/data';
+import { StorageService, MigraineEntry, MedicalDocument, AIAnalysis } from '@/services/data';
 import { GeminiService } from '@/services/gemini';
+
 const { width } = Dimensions.get('window');
 
 export default function AnalyticsScreen() {
@@ -43,14 +43,17 @@ export default function AnalyticsScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [aiAnalysis, setAiAnalysis] = useState<string>('');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [savedAnalyses, setSavedAnalyses] = useState<AIAnalysis[]>([]);
+  const [overallAnalysis, setOverallAnalysis] = useState<string>('');
+  const [isGeneratingOverall, setIsGeneratingOverall] = useState(false);
 
   const loadData = async () => {
-    const [savedEntries, savedDocs] = await Promise.all([
+    const [savedEntries, savedDocs, savedAnalysesData] = await Promise.all([
       StorageService.loadEntries(),
-      StorageService.loadMedicalDocuments()
+      StorageService.loadMedicalDocuments(),
+      StorageService.loadAIAnalyses()
     ]);
 
-    // Sort entries
     const sorted = [...savedEntries].sort((a, b) => {
       const timeA = a.timestamp ? new Date(a.timestamp).getTime() : parseInt(a.id);
       const timeB = b.timestamp ? new Date(b.timestamp).getTime() : parseInt(b.id);
@@ -59,6 +62,7 @@ export default function AnalyticsScreen() {
 
     setEntries(sorted);
     setMedicalDocs(savedDocs);
+    setSavedAnalyses(savedAnalysesData);
     setLoading(false);
   };
 
@@ -66,8 +70,22 @@ export default function AnalyticsScreen() {
     if (entries.length === 0) return;
     setIsAnalyzing(true);
     const insights = await GeminiService.getAIInsights(entries, medicalDocs);
+    await GeminiService.saveAIAnalysis(insights);
     setAiAnalysis(insights);
+    await loadData();
     setIsAnalyzing(false);
+  };
+
+  const runOverallAnalysis = async () => {
+    if (entries.length === 0) return;
+    setIsGeneratingOverall(true);
+    const analysis = await GeminiService.getOverallAnalysis(entries, medicalDocs);
+    setOverallAnalysis(analysis);
+    setIsGeneratingOverall(false);
+  };
+
+  const exportToPDF = () => {
+    Alert.alert('Info', 'Eksport do PDF będzie dostępny w kolejnej wersji. Skopiuj wynik analizy ręcznie.');
   };
 
   useFocusEffect(
@@ -122,8 +140,7 @@ export default function AnalyticsScreen() {
           <ThemedText style={styles.subtitle}>Odkryj swoje punkty zapalne</ThemedText>
         </View>
 
-        {/* Stats Row */}
-        <View style={styles.statsRow}>
+        <View style={[styles.statsRow, { marginBottom: 0 }]}>
           <View style={[styles.statCard, { backgroundColor: theme.card }]}>
             <TrendingUp size={20} color={theme.tint} />
             <ThemedText style={styles.statValue}>{avgs.pain}</ThemedText>
@@ -136,7 +153,7 @@ export default function AnalyticsScreen() {
           </View>
         </View>
 
-        {/* Chart View */}
+        {/* CHART */}
         <View style={[styles.chartContainer, { backgroundColor: theme.card }]}>
           <ThemedText style={styles.cardTitle}>Trend Bólu</ThemedText>
           {entries.length > 1 ? (
@@ -174,43 +191,77 @@ export default function AnalyticsScreen() {
           )}
         </View>
 
-        {/* AI INSIGHTS SECTION */}
+        {/* AI ANALYSIS BUTTONS */}
         <View style={styles.sectionHeaderRow}>
-          <ThemedText style={styles.sectionTitle}>Spostrzeżenia AI</ThemedText>
+          <ThemedText style={styles.sectionTitle}>Analiza AI</ThemedText>
+        </View>
+
+        <View style={styles.buttonGroup}>
           <TouchableOpacity 
             onPress={runAIAnalysis} 
             disabled={isAnalyzing || entries.length === 0}
-            style={[styles.aiButton, { opacity: (isAnalyzing || entries.length === 0) ? 0.5 : 1 }]}
+            style={[styles.aiButton, { flex: 1, opacity: (isAnalyzing || entries.length === 0) ? 0.5 : 1 }]}
           >
             {isAnalyzing ? (
               <ActivityIndicator size="small" color={theme.tint} />
             ) : (
               <>
                 <Sparkles size={16} color={theme.tint} />
-                <ThemedText style={{ color: theme.tint, fontWeight: 'bold' }}>Analizuj z Gemini</ThemedText>
+                <ThemedText style={{ color: theme.tint, fontWeight: 'bold' }}>Analizuj pojedynczo</ThemedText>
               </>
             )}
           </TouchableOpacity>
+
+          <TouchableOpacity 
+            onPress={runOverallAnalysis} 
+            disabled={isGeneratingOverall || entries.length === 0}
+            style={[styles.aiButton, { flex: 1, marginLeft: 8, opacity: (isGeneratingOverall || entries.length === 0) ? 0.5 : 1 }]}
+          >
+            {isGeneratingOverall ? (
+              <ActivityIndicator size="small" color={theme.tint} />
+            ) : (
+              <>
+                <FileText size={16} color={theme.tint} />
+                <ThemedText style={{ color: theme.tint, fontWeight: 'bold' }}>Analiza całościowa</ThemedText>
+              </>
+            )}
+          </TouchableOpacity>
+
+          {overallAnalysis && (
+            <TouchableOpacity 
+              onPress={exportToPDF}
+              style={[styles.exportButton, { marginTop: 8 }]}
+            >
+              <FileText size={16} color={theme.tint} />
+              <ThemedText style={{ color: theme.tint, fontWeight: 'bold' }}>Eksportuj do PDF</ThemedText>
+            </TouchableOpacity>
+          )}
         </View>
 
         {aiAnalysis ? (
            <View style={[styles.aiCard, { backgroundColor: theme.card, borderColor: theme.tint }]}>
-             <ThemedText style={styles.aiText}>{aiAnalysis}</ThemedText>
+              <ThemedText style={styles.aiText}>{aiAnalysis}</ThemedText>
            </View>
         ) : (
           <View style={[styles.aiPlaceholder, { backgroundColor: theme.card }]}>
             <ThemedText style={styles.mutedText}>
               {entries.length > 0 
-                ? "Kliknij 'Analizuj z Gemini', aby otrzymać spersonalizowane wskazówki na podstawie Twoich logów i badań."
+                ? "Kliknij 'Analizuj pojedynczo', aby otrzymać wskazówki na podstawie logów."
                 : "Dodaj wpisy w dzienniku, aby AI mogło przeprowadzić analizę."}
             </ThemedText>
           </View>
         )}
 
-        {/* Insights Section */}
+        {overallAnalysis && (
+          <View style={[styles.overallCard, { backgroundColor: theme.card }]}>
+            <ThemedText style={styles.sectionTitle}>Analiza Całościowa</ThemedText>
+            <ThemedText style={styles.aiText}>{overallAnalysis}</ThemedText>
+          </View>
+        )}
+
+        {/* STATISTICAL INSIGHTS */}
         <ThemedText style={styles.sectionTitle}>Spostrzeżenia Statystyczne</ThemedText>
 
-        {/* Korelacja Meteo */}
         <View style={[styles.insightCard, { backgroundColor: FactorColors.weather + '15', borderColor: FactorColors.weather, borderWidth: 1 }]}>
           <View style={styles.labelRow}>
             <Wind size={20} color={FactorColors.weather} />
@@ -231,7 +282,6 @@ export default function AnalyticsScreen() {
           </ThemedText>
         </View>
 
-        {/* Nawodnienie */}
         <View style={[styles.insightCard, { backgroundColor: FactorColors.hydration + '15', borderColor: FactorColors.hydration, borderWidth: 1 }]}>
           <View style={styles.labelRow}>
             <Droplets size={20} color={FactorColors.hydration} />
@@ -252,7 +302,6 @@ export default function AnalyticsScreen() {
           </ThemedText>
         </View>
 
-        {/* Trigger: Stres */}
         <View style={[styles.insightCard, { backgroundColor: FactorColors.stress + '15', borderColor: FactorColors.stress, borderWidth: 1 }]}>
           <View style={styles.labelRow}>
             <Zap size={20} color={FactorColors.stress} />
@@ -268,7 +317,6 @@ export default function AnalyticsScreen() {
           </ThemedText>
         </View>
 
-        {/* Higiena Snu */}
         <View style={[styles.insightCard, { backgroundColor: FactorColors.sleep + '15', borderColor: FactorColors.sleep, borderWidth: 1 }]}>
           <View style={styles.labelRow}>
             <Moon size={20} color={FactorColors.sleep} />
@@ -284,7 +332,6 @@ export default function AnalyticsScreen() {
           </ThemedText>
         </View>
 
-        {/* Otoczenie */}
         <View style={[styles.insightCard, { backgroundColor: FactorColors.environment + '15', borderColor: FactorColors.environment, borderWidth: 1 }]}>
           <View style={styles.labelRow}>
             <Eye size={20} color={FactorColors.environment} />
@@ -300,16 +347,15 @@ export default function AnalyticsScreen() {
           </ThemedText>
         </View>
 
-        {/* Samopoczucie */}
         <View style={[styles.insightCard, { backgroundColor: FactorColors.mood + '15', borderColor: FactorColors.mood, borderWidth: 1 }]}>
           <View style={styles.labelRow}>
             <Smile size={20} color={FactorColors.mood} />
-            <ThemedText style={[styles.cardTitle, { color: FactorColors.mood }]}>Samopoczucie</ThemedText>
+            <ThemedText style={[styles.cardTitle, { color: FactorColors.mood }]}>Nastrój</ThemedText>
           </View>
           <ThemedText style={styles.insightText}>
             {(() => {
               const badMoodEntries = entries.filter(e => e.mood === 'Złe' || e.mood === 'Bardzo złe');
-              if (badMoodEntries.length === 0) return "Brak odnotowanych wpisów ze złym samopoczuciem.";
+              if (badMoodEntries.length === 0) return "Brak odnotowanych wpisów ze złym nastrojem.";
               const avgPain = badMoodEntries.reduce((acc, e) => acc + e.pain, 0) / badMoodEntries.length;
               return `Przy obniżonym nastroju średni ból wynosi: ${avgPain.toFixed(1)}.`;
             })()}
@@ -350,7 +396,7 @@ const styles = StyleSheet.create({
   statsRow: {
     flexDirection: 'row',
     gap: 16,
-    marginBottom: 20,
+    marginBottom: 0,
   },
   statCard: {
     flex: 1,
@@ -372,8 +418,8 @@ const styles = StyleSheet.create({
   chartContainer: {
     padding: 16,
     borderRadius: 16,
-    marginBottom: 20,
-    minHeight: 280,
+    marginBottom: 32,
+    minHeight: 320,
   },
   cardTitle: {
     fontSize: 18,
@@ -416,7 +462,21 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 6,
     paddingHorizontal: 12,
-    paddingVertical: 6,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 45, 85, 0.1)',
+  },
+  buttonGroup: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 16,
+  },
+  exportButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
     borderRadius: 20,
     backgroundColor: 'rgba(255, 45, 85, 0.1)',
   },
@@ -426,6 +486,14 @@ const styles = StyleSheet.create({
     marginBottom: 24,
     borderWidth: 1,
     borderStyle: 'dashed',
+  },
+  overallCard: {
+    padding: 16,
+    borderRadius: 16,
+    marginBottom: 24,
+    borderWidth: 1,
+    borderColor: FactorColors.stress,
+    backgroundColor: FactorColors.stress + '10',
   },
   aiText: {
     lineHeight: 22,

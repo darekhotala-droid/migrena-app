@@ -11,10 +11,11 @@ import {
   Dimensions,
   Platform
 } from 'react-native';
+
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { 
   Thermometer, 
-  Droplets, 
+  Droplets as BlueDroplets, 
   Calendar, 
   Pizza, 
   Plus, 
@@ -23,13 +24,12 @@ import {
   Zap,
   Activity,
   Pill,
-  Wind,
   Eye,
-  Volume2,
   Minus,
   Smile,
-  Coffee
+  ChevronDown
 } from 'lucide-react-native';
+
 import Slider from '@react-native-community/slider';
 import { useModal } from '@/context/modal-context';
 import { WeatherService, StorageService, MigraineEntry } from '@/services/data';
@@ -37,6 +37,36 @@ import { ThemedText } from './themed-text';
 import { ThemedView } from './themed-view';
 import { Colors, FactorColors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+
+const AccordionItem = ({ title, color, icon, children }: any) => {
+  const [isOpen, setIsOpen] = useState(false);
+  
+  return (
+    <View style={{ flex: 1, borderRadius: 8, overflow: 'hidden', borderWidth: 1, borderColor: color + '40' }}>
+      <TouchableOpacity 
+        onPress={() => setIsOpen(!isOpen)} 
+        style={{ backgroundColor: color + '15', padding: 8, flexDirection: 'row', alignItems: 'center', gap: 6 }}
+      >
+        {icon}
+        <ThemedText style={{ color, fontWeight: 'bold', flex: 1, fontSize: 12 }}>{title}</ThemedText>
+        <ChevronDown size={14} color={color} style={{ transform: [{ rotate: isOpen ? '-180deg' : '0deg' }] }} />
+      </TouchableOpacity>
+      {isOpen && (
+        <View style={{ padding: 8, backgroundColor: 'rgba(255,255,255,0.02)' }}>
+          {children}
+        </View>
+      )}
+    </View>
+  );
+};
+
+const FactorGroup = ({ children }: any) => {
+  return (
+    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 }}>
+      {children}
+    </View>
+  );
+};
 
 const { width } = Dimensions.get('window');
 
@@ -72,6 +102,7 @@ export function AddEditModal({ onSave }: { onSave?: () => void }) {
   });
 
   const [activeSections, setActiveSections] = useState({
+    hydration: false,
     sleep: false,
     stress: false,
     activity: false,
@@ -115,15 +146,16 @@ export function AddEditModal({ onSave }: { onSave?: () => void }) {
       if (editingEntry) {
         // Parse the stored Polish date string (DD.MM.YYYY)
         const [day, month, year] = editingEntry.date.split('.').map(Number);
-        setFormData({
-          date: new Date(year, month - 1, day),
-          pain: editingEntry.pain,
-          water: editingEntry.water,
-          food: editingEntry.food,
-          period: editingEntry.period,
-          pressure: editingEntry.pressure,
-          temp: editingEntry.temp,
-          weatherDesc: editingEntry.weatherDesc,
+      setFormData({
+      date: new Date(year, month - 1, day),
+      pain: editingEntry.pain,
+      water: editingEntry.water,
+      food: editingEntry.food || '',
+      period: editingEntry.period,
+      pressure: editingEntry.pressure,
+      temp: editingEntry.temp,
+      weatherDesc: editingEntry.weatherDesc || 'N/A',
+
           sleepHours: editingEntry.sleepHours ?? 8,
           sleepTime: editingEntry.sleepTime ?? '',
           wakeTime: editingEntry.wakeTime ?? '',
@@ -141,6 +173,7 @@ export function AddEditModal({ onSave }: { onSave?: () => void }) {
 
         // Activate sections if they have data
         setActiveSections({
+          hydration: editingEntry.water > 0,
           sleep: !!(editingEntry.sleepTime || editingEntry.wakeTime),
           stress: !!(editingEntry.stressLevel || editingEntry.stressPreviousDay),
           activity: !!editingEntry.activityType,
@@ -152,6 +185,7 @@ export function AddEditModal({ onSave }: { onSave?: () => void }) {
         // New entry
         setFormData(prev => ({ ...prev, date: new Date() }));
         setActiveSections({
+           hydration: false,
            sleep: false,
            stress: false,
            activity: false,
@@ -265,7 +299,7 @@ export function AddEditModal({ onSave }: { onSave?: () => void }) {
         ...e,
         date: dateStr,
         pain: formData.pain,
-        water: formData.water,
+        water: activeSections.hydration ? formData.water : 2,
         food: formData.food,
         period: formData.period,
         pressure: formData.pressure,
@@ -293,7 +327,7 @@ export function AddEditModal({ onSave }: { onSave?: () => void }) {
         date: dateStr,
         timestamp: now.toISOString(),
         pain: formData.pain,
-        water: formData.water,
+        water: activeSections.hydration ? formData.water : 2,
         food: formData.food,
         period: formData.period,
         pressure: formData.pressure,
@@ -416,12 +450,13 @@ export function AddEditModal({ onSave }: { onSave?: () => void }) {
               />
             </View>
 
-            <View style={styles.inputRow}>
-              <View style={styles.halfInput}>
-                <View style={styles.labelRow}>
-                  <Droplets size={16} color={theme.muted} />
-                  <ThemedText>Woda (L)</ThemedText>
-                </View>
+            {/* WATER SECTION */}
+            <FactorGroup>
+              <AccordionItem 
+                title="Nawodnienie" 
+                color="#3b82f6" 
+                icon={<BlueDroplets size={14} color="#3b82f6" />}
+              >
                 <View style={styles.waterControls}>
                   <TouchableOpacity 
                     style={[styles.waterBtn, { backgroundColor: theme.card, borderColor: theme.muted }]}
@@ -444,159 +479,77 @@ export function AddEditModal({ onSave }: { onSave?: () => void }) {
                     <Plus size={16} color={theme.text} />
                   </TouchableOpacity>
                 </View>
-              </View>
-              <View style={styles.halfInput}>
-                <View style={styles.labelRow}>
-                  <Calendar size={16} color={theme.muted} />
-                  <ThemedText>Miesiączka</ThemedText>
-                </View>
-                <Switch
-                  value={formData.period}
-                  onValueChange={v => setFormData({ ...formData, period: v })}
-                  trackColor={{ false: theme.muted, true: theme.tint }}
-                  thumbColor="#fff"
-                />
-              </View>
-            </View>
+              </AccordionItem>
+            </FactorGroup>
 
+            {/* PERIOD SECTION */}
             <View style={styles.inputGroup}>
               <View style={styles.labelRow}>
-                <Coffee size={16} color={FactorColors.diet} />
-                <ThemedText>Dieta i używki</ThemedText>
+                <Calendar size={16} color={theme.muted} />
+                <ThemedText>Miesiączka</ThemedText>
               </View>
-              <TextInput
-                style={[styles.input, { color: theme.text, borderColor: theme.muted }]}
-                placeholder="np. sery, wino, czekolada, kawa"
-                placeholderTextColor={theme.muted}
-                value={formData.food}
-                onChangeText={v => setFormData({ ...formData, food: v })}
+              <Switch
+                value={formData.period}
+                onValueChange={v => setFormData({ ...formData, period: v })}
+                trackColor={{ false: theme.muted, true: theme.tint }}
+                thumbColor="#fff"
               />
             </View>
 
-            {/* MOOD SECTION */}
-            {!activeSections.mood ? (
-              <TouchableOpacity 
-                style={[styles.addBtn, { borderColor: FactorColors.mood }]} 
-                onPress={() => setActiveSections({ ...activeSections, mood: true })}
+            {/* DIET SECTION */}
+            <FactorGroup>
+              <AccordionItem 
+                title="Dieta i używki" 
+                color={FactorColors.diet} 
+                icon={<Pizza size={14} color={FactorColors.diet} />}
               >
-                <Plus size={16} color={FactorColors.mood} />
-                <ThemedText style={{ color: FactorColors.mood }}>Dodaj Samopoczucie</ThemedText>
-              </TouchableOpacity>
-            ) : (
-              <View style={styles.trackedSection}>
-                <View style={styles.sectionHeaderCustom}>
-                  <View style={styles.labelRow}>
-                    <Smile size={18} color={FactorColors.mood} />
-                    <ThemedText style={styles.sectionTitle}>Samopoczucie</ThemedText>
-                  </View>
-                  <TouchableOpacity onPress={() => setActiveSections({ ...activeSections, mood: false })}>
-                    <X size={16} color={theme.muted} />
-                  </TouchableOpacity>
-                </View>
-                <View style={styles.inputGroup}>
-                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 }}>
-                    {['Bardzo dobre', 'Dobre', 'Przeciętne', 'Złe', 'Bardzo złe'].map(m => (
-                      <TouchableOpacity
-                        key={m}
-                        style={[
-                          styles.moodBtn, 
-                          { 
-                            borderColor: formData.mood === m ? FactorColors.mood : theme.muted,
-                            backgroundColor: formData.mood === m ? FactorColors.mood + '20' : 'transparent'
-                          }
-                        ]}
-                        onPress={() => setFormData({ ...formData, mood: m })}
-                      >
-                        <ThemedText style={{ color: formData.mood === m ? FactorColors.mood : theme.text }}>{m}</ThemedText>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-                </View>
-              </View>
-            )}
+                <TextInput
+                  style={[styles.input, { color: theme.text, borderColor: theme.muted }]}
+                  placeholder="np. sery, wino, czekolada, kawa"
+                  placeholderTextColor={theme.muted}
+                  value={formData.food}
+                  onChangeText={v => setFormData({ ...formData, food: v })}
+                />
+              </AccordionItem>
+            </FactorGroup>
 
-            {/* SLEEP SECTION */}
-            {!activeSections.sleep ? (
-              <TouchableOpacity 
-                style={[styles.addBtn, { borderColor: FactorColors.sleep }]} 
-                onPress={() => setActiveSections({ ...activeSections, sleep: true })}
+            {/* MOOD SECTION */}
+            <FactorGroup>
+              <AccordionItem 
+                title="Samopoczucie" 
+                color={FactorColors.mood} 
+                icon={<Smile size={14} color={FactorColors.mood} />}
               >
-                <Plus size={16} color={FactorColors.sleep} />
-                <ThemedText style={{ color: FactorColors.sleep }}>Dodaj Sen i Regenerację</ThemedText>
-              </TouchableOpacity>
-            ) : (
-              <View style={styles.trackedSection}>
-                <View style={styles.sectionHeaderCustom}>
-                  <View style={styles.labelRow}>
-                    <Moon size={18} color={FactorColors.sleep} />
-                    <ThemedText style={styles.sectionTitle}>Sen i Regeneracja</ThemedText>
-                  </View>
-                  <TouchableOpacity onPress={() => setActiveSections({ ...activeSections, sleep: false })}>
-                    <X size={16} color={theme.muted} />
-                  </TouchableOpacity>
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                  {['Bardzo dobre', 'Dobre', 'Przeciętne', 'Złe', 'Bardzo złe'].map(m => (
+                    <TouchableOpacity
+                      key={m}
+                      style={[
+                        styles.moodBtn, 
+                        { 
+                          borderColor: formData.mood === m ? FactorColors.mood : theme.muted,
+                          backgroundColor: formData.mood === m ? FactorColors.mood + '20' : 'transparent'
+                        }
+                      ]}
+                      onPress={() => setFormData({ ...formData, mood: m })}
+                    >
+                      <ThemedText style={{ color: formData.mood === m ? FactorColors.mood : theme.text }}>{m}</ThemedText>
+                    </TouchableOpacity>
+                  ))}
                 </View>
-                <View style={styles.inputGroup}>
-                  <ThemedText>Długość snu: <ThemedText style={{ color: FactorColors.sleep, fontWeight: 'bold' }}>{formData.sleepHours}h</ThemedText></ThemedText>
-                  <Slider
-                    style={{ width: '100%', height: 40 }}
-                    minimumValue={3}
-                    maximumValue={12}
-                    step={0.5}
-                    value={formData.sleepHours}
-                    onValueChange={v => setFormData({ ...formData, sleepHours: v })}
-                    minimumTrackTintColor={FactorColors.sleep}
-                    maximumTrackTintColor={theme.muted}
-                    thumbTintColor={FactorColors.sleep}
-                  />
-                </View>
-                <View style={styles.inputRow}>
-                  <View style={styles.halfInput}>
-                    <ThemedText style={styles.miniLabel}>Godz. zaśnięcia</ThemedText>
-                    <TextInput
-                      style={[styles.input, { color: theme.text, borderColor: theme.muted }]}
-                      placeholder="np. 23:30"
-                      placeholderTextColor={theme.muted}
-                      value={formData.sleepTime}
-                      onChangeText={v => updateSleepTime('sleepTime', v)}
-                    />
-                  </View>
-                  <View style={styles.halfInput}>
-                    <ThemedText style={styles.miniLabel}>Godz. pobudki</ThemedText>
-                    <TextInput
-                      style={[styles.input, { color: theme.text, borderColor: theme.muted }]}
-                      placeholder="np. 07:00"
-                      placeholderTextColor={theme.muted}
-                      value={formData.wakeTime}
-                      onChangeText={v => updateSleepTime('wakeTime', v)}
-                    />
-                  </View>
-                </View>
-              </View>
-            )}
+              </AccordionItem>
+            </FactorGroup>
 
             {/* STRESS SECTION */}
-            {!activeSections.stress ? (
-              <TouchableOpacity 
-                style={[styles.addBtn, { borderColor: FactorColors.stress }]} 
-                onPress={() => setActiveSections({ ...activeSections, stress: true })}
+            <FactorGroup>
+              <AccordionItem 
+                title="Stres" 
+                color={FactorColors.stress} 
+                icon={<Zap size={14} color={FactorColors.stress} />}
               >
-                <Plus size={16} color={FactorColors.stress} />
-                <ThemedText style={{ color: FactorColors.stress }}>Dodaj Stres i Emocje</ThemedText>
-              </TouchableOpacity>
-            ) : (
-              <View style={styles.trackedSection}>
-                <View style={styles.sectionHeaderCustom}>
-                  <View style={styles.labelRow}>
-                    <Zap size={18} color={FactorColors.stress} />
-                    <ThemedText style={styles.sectionTitle}>Stres i Emocje</ThemedText>
-                  </View>
-                  <TouchableOpacity onPress={() => setActiveSections({ ...activeSections, stress: false })}>
-                    <X size={16} color={theme.muted} />
-                  </TouchableOpacity>
-                </View>
-                <View style={styles.inputRow}>
-                  <View style={styles.halfInput}>
-                    <ThemedText style={styles.miniLabel}>Stres dzisiaj (1-10)</ThemedText>
+                <View style={{ flexDirection: 'row', gap: 8 }}>
+                  <View style={{ flex: 1 }}>
+                    <ThemedText style={{ fontSize: 12, opacity: 0.6 }}>Stres dzisiaj (1-10)</ThemedText>
                     <Slider
                       style={{ width: '100%', height: 40 }}
                       minimumValue={0}
@@ -609,8 +562,8 @@ export function AddEditModal({ onSave }: { onSave?: () => void }) {
                       thumbTintColor={FactorColors.stress}
                     />
                   </View>
-                  <View style={styles.halfInput}>
-                    <ThemedText style={styles.miniLabel}>Stres wczoraj (1-10)</ThemedText>
+                  <View style={{ flex: 1 }}>
+                    <ThemedText style={{ fontSize: 12, opacity: 0.6 }}>Stres wczoraj (1-10)</ThemedText>
                     <Slider
                       style={{ width: '100%', height: 40 }}
                       minimumValue={0}
@@ -624,64 +577,80 @@ export function AddEditModal({ onSave }: { onSave?: () => void }) {
                     />
                   </View>
                 </View>
-              </View>
-            )}
+              </AccordionItem>
+            </FactorGroup>
 
-            {/* ACTIVITY SECTION */}
-            {!activeSections.activity ? (
-              <TouchableOpacity 
-                style={[styles.addBtn, { borderColor: FactorColors.activity }]} 
-                onPress={() => setActiveSections({ ...activeSections, activity: true })}
+            {/* SLEEP SECTION */}
+            <FactorGroup>
+              <AccordionItem 
+                title="Sen i regeneracja" 
+                color={FactorColors.sleep} 
+                icon={<Moon size={14} color={FactorColors.sleep} />}
               >
-                <Plus size={16} color={FactorColors.activity} />
-                <ThemedText style={{ color: FactorColors.activity }}>Dodaj Aktywność Fizyczną</ThemedText>
-              </TouchableOpacity>
-            ) : (
-              <View style={styles.trackedSection}>
-                <View style={styles.sectionHeaderCustom}>
-                  <View style={styles.labelRow}>
-                    <Activity size={18} color={FactorColors.activity} />
-                    <ThemedText style={styles.sectionTitle}>Aktywność Fizyczna</ThemedText>
+                <ThemedText>Długość snu: <ThemedText style={{ color: FactorColors.sleep, fontWeight: 'bold' }}>{formData.sleepHours}h</ThemedText></ThemedText>
+                <Slider
+                  style={{ width: '100%', height: 40 }}
+                  minimumValue={3}
+                  maximumValue={12}
+                  step={0.5}
+                  value={formData.sleepHours}
+                  onValueChange={v => setFormData({ ...formData, sleepHours: v })}
+                  minimumTrackTintColor={FactorColors.sleep}
+                  maximumTrackTintColor={theme.muted}
+                  thumbTintColor={FactorColors.sleep}
+                />
+                <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
+                  <View style={{ flex: 1 }}>
+                    <ThemedText style={{ fontSize: 12, opacity: 0.6 }}>Godz. zaśnięcia</ThemedText>
+                    <TextInput
+                      style={[styles.input, { color: theme.text, borderColor: theme.muted }]}
+                      placeholder="np. 23:30"
+                      placeholderTextColor={theme.muted}
+                      value={formData.sleepTime}
+                      onChangeText={v => updateSleepTime('sleepTime', v)}
+                    />
                   </View>
-                  <TouchableOpacity onPress={() => setActiveSections({ ...activeSections, activity: false })}>
-                    <X size={16} color={theme.muted} />
-                  </TouchableOpacity>
+                  <View style={{ flex: 1 }}>
+                    <ThemedText style={{ fontSize: 12, opacity: 0.6 }}>Godz. pobudki</ThemedText>
+                    <TextInput
+                      style={[styles.input, { color: theme.text, borderColor: theme.muted }]}
+                      placeholder="np. 07:00"
+                      placeholderTextColor={theme.muted}
+                      value={formData.wakeTime}
+                      onChangeText={v => updateSleepTime('wakeTime', v)}
+                    />
+                  </View>
                 </View>
-                <View style={styles.inputGroup}>
-                  <TextInput
-                    style={[styles.input, { color: theme.text, borderColor: theme.muted }]}
-                    placeholder="np. spacer, siłownia, brak"
-                    placeholderTextColor={theme.muted}
-                    value={formData.activityType}
-                    onChangeText={v => setFormData({ ...formData, activityType: v })}
-                  />
-                </View>
-              </View>
-            )}
+              </AccordionItem>
+            </FactorGroup>
+
+       {/* ACTIVITY SECTION */}
+            <FactorGroup>
+              <AccordionItem 
+                title="Aktywność" 
+                color={FactorColors.activity} 
+                icon={<Activity size={14} color={FactorColors.activity} />}
+              >
+                <TextInput
+                  style={[styles.input, { color: theme.text, borderColor: theme.muted }]}
+                  placeholder="np. spacer, siłownia, brak"
+                  placeholderTextColor={theme.muted}
+                  value={formData.activityType}
+                  onChangeText={v => setFormData({ ...formData, activityType: v })}
+                />
+              </AccordionItem>
+            </FactorGroup>
 
             {/* MEDS SECTION */}
-            {!activeSections.meds ? (
-              <TouchableOpacity 
-                style={[styles.addBtn, { borderColor: theme.tint }]} 
-                onPress={() => setActiveSections({ ...activeSections, meds: true })}
+            <FactorGroup>
+              <AccordionItem 
+                title="Leki i suplementy" 
+                color={theme.tint} 
+                icon={<Pill size={14} color={theme.tint} />}
               >
-                <Plus size={16} color={theme.tint} />
-                <ThemedText style={{ color: theme.tint }}>Dodaj Leki i Suplementy</ThemedText>
-              </TouchableOpacity>
-            ) : (
-              <View style={styles.trackedSection}>
-                <View style={styles.sectionHeaderCustom}>
-                  <View style={styles.labelRow}>
-                    <Pill size={18} color={theme.tint} />
-                    <ThemedText style={styles.sectionTitle}>Leki i Suplementy</ThemedText>
-                  </View>
-                  <TouchableOpacity onPress={() => setActiveSections({ ...activeSections, meds: false })}>
-                    <X size={16} color={theme.muted} />
-                  </TouchableOpacity>
-                </View>
-                <View style={styles.inputRow}>
-                  <View style={styles.halfInput}>
-                    <ThemedText style={styles.miniLabel}>Nazwa leku</ThemedText>
+                <View style={{ flexDirection: 'row', gap: 8 }}>
+                  <View style={{ flex: 1 }}>
+                    <ThemedText style={{ fontSize: 12, opacity: 0.6 }}>Nazwa leku</ThemedText>
                     <TextInput
                       style={[styles.input, { color: theme.text, borderColor: theme.muted }]}
                       placeholder="np. Sumatryptan"
@@ -690,8 +659,8 @@ export function AddEditModal({ onSave }: { onSave?: () => void }) {
                       onChangeText={v => setFormData({ ...formData, medName: v })}
                     />
                   </View>
-                  <View style={styles.halfInput}>
-                    <ThemedText style={styles.miniLabel}>Godz. przyjęcia</ThemedText>
+                  <View style={{ flex: 1 }}>
+                    <ThemedText style={{ fontSize: 12, opacity: 0.6 }}>Godz. przyjęcia</ThemedText>
                     <TextInput
                       style={[styles.input, { color: theme.text, borderColor: theme.muted }]}
                       placeholder="np. 08:30"
@@ -701,75 +670,44 @@ export function AddEditModal({ onSave }: { onSave?: () => void }) {
                     />
                   </View>
                 </View>
-                <View style={styles.inputGroup}>
-                  <ThemedText style={styles.miniLabel}>Skuteczność (np. ulga po 2h)</ThemedText>
-                  <TextInput
-                    style={[styles.input, { color: theme.text, borderColor: theme.muted }]}
-                    placeholder="np. ból przeszedł, brak poprawy"
-                    placeholderTextColor={theme.muted}
-                    value={formData.medEffectiveness}
-                    onChangeText={v => setFormData({ ...formData, medEffectiveness: v })}
-                  />
-                </View>
-              </View>
-            )}
+                <ThemedText style={{ fontSize: 12, opacity: 0.6, marginTop: 8 }}>Skuteczność (np. ulga po 2h)</ThemedText>
+                <TextInput
+                  style={[styles.input, { color: theme.text, borderColor: theme.muted }]}
+                  placeholder="np. ból przeszedł, brak poprawy"
+                  placeholderTextColor={theme.muted}
+                  value={formData.medEffectiveness}
+                  onChangeText={v => setFormData({ ...formData, medEffectiveness: v })}
+                />
+              </AccordionItem>
+            </FactorGroup>
 
             {/* ENVIRONMENT SECTION */}
-            {!activeSections.environment ? (
-              <TouchableOpacity 
-                style={[styles.addBtn, { borderColor: FactorColors.environment }]} 
-                onPress={() => setActiveSections({ ...activeSections, environment: true })}
+            <FactorGroup>
+              <AccordionItem 
+                title="Otoczenie" 
+                color={FactorColors.environment} 
+                icon={<Eye size={14} color={FactorColors.environment} />}
               >
-                <Plus size={16} color={FactorColors.environment} />
-                <ThemedText style={{ color: FactorColors.environment }}>Dodaj Wyzwalacze (Otoczenie)</ThemedText>
-              </TouchableOpacity>
-            ) : (
-              <View style={styles.trackedSection}>
-                <View style={styles.sectionHeaderCustom}>
-                  <View style={styles.labelRow}>
-                    <Wind size={18} color={FactorColors.environment} />
-                    <ThemedText style={styles.sectionTitle}>Otoczenie (Wyzwalacze)</ThemedText>
-                  </View>
-                  <TouchableOpacity onPress={() => setActiveSections({ ...activeSections, environment: false })}>
-                    <X size={16} color={theme.muted} />
-                  </TouchableOpacity>
-                </View>
-                <View style={styles.inputGroup}>
-                  <View style={styles.labelRow}>
-                    <Wind size={14} color={theme.muted} />
-                    <ThemedText style={styles.miniLabel}>Zapachy (np. perfumy, dym)</ThemedText>
-                  </View>
-                  <TextInput
-                    style={[styles.input, { color: theme.text, borderColor: theme.muted }]}
-                    value={formData.environmentSmells}
-                    onChangeText={v => setFormData({ ...formData, environmentSmells: v })}
-                  />
-                </View>
-                <View style={styles.inputGroup}>
-                  <View style={styles.labelRow}>
-                    <Eye size={14} color={theme.muted} />
-                    <ThemedText style={styles.miniLabel}>Światło (np. słońce, monitor)</ThemedText>
-                  </View>
-                  <TextInput
-                    style={[styles.input, { color: theme.text, borderColor: theme.muted }]}
-                    value={formData.environmentLight}
-                    onChangeText={v => setFormData({ ...formData, environmentLight: v })}
-                  />
-                </View>
-                <View style={styles.inputGroup}>
-                  <View style={styles.labelRow}>
-                    <Volume2 size={14} color={theme.muted} />
-                    <ThemedText style={styles.miniLabel}>Hałas (np. maszyny, muzyka)</ThemedText>
-                  </View>
-                  <TextInput
-                    style={[styles.input, { color: theme.text, borderColor: theme.muted }]}
-                    value={formData.environmentNoise}
-                    onChangeText={v => setFormData({ ...formData, environmentNoise: v })}
-                  />
-                </View>
-
-              </View>
-            )}
+                <ThemedText style={{ fontSize: 12, opacity: 0.6 }}>Zapachy (np. perfumy, dym)</ThemedText>
+                <TextInput
+                  style={[styles.input, { color: theme.text, borderColor: theme.muted }]}
+                  value={formData.environmentSmells}
+                  onChangeText={v => setFormData({ ...formData, environmentSmells: v })}
+                />
+                <ThemedText style={{ fontSize: 12, opacity: 0.6, marginTop: 8 }}>Światło (np. słońce, monitor)</ThemedText>
+                <TextInput
+                  style={[styles.input, { color: theme.text, borderColor: theme.muted }]}
+                  value={formData.environmentLight}
+                  onChangeText={v => setFormData({ ...formData, environmentLight: v })}
+                />
+                <ThemedText style={{ fontSize: 12, opacity: 0.6, marginTop: 8 }}>Hałas (np. maszyny, muzyka)</ThemedText>
+                <TextInput
+                  style={[styles.input, { color: theme.text, borderColor: theme.muted }]}
+                  value={formData.environmentNoise}
+                  onChangeText={v => setFormData({ ...formData, environmentNoise: v })}
+                />
+              </AccordionItem>
+            </FactorGroup>
 
             <ThemedText style={[styles.sectionTitle, { fontSize: 16, marginTop: 10 }]}>Dane pogodowe (pobrane automatycznie)</ThemedText>
             <View style={styles.inputRow}>

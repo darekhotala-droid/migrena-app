@@ -24,32 +24,32 @@ export interface AIAnalysis {
   content: string;
 }
 
-export interface MigraineEntry {
-  id: string;
-  date: string; // Display date (e.g. 12.03.2024)
-  timestamp: string; // ISO string for sorting
-  pain: number;
-  water: number;
-  food: string;
-  period: boolean;
-  pressure: number;
-  temp: number;
-  weatherDesc: string;
-  // New fields
-  sleepHours?: number;
-  sleepTime?: string;
-  wakeTime?: string;
-  stressLevel?: number;
-  stressPreviousDay?: number;
-  activityType?: string;
-  medName?: string;
-  medTime?: string;
-  medEffectiveness?: string;
-  environmentSmells?: string;
-  environmentLight?: string;
-  environmentNoise?: string;
-  mood?: string;
-}
+ export interface MigraineEntry {
+    id: string;
+    date: string; // Display date (e.g. 12.03.2024)
+    timestamp: string; // ISO string for sorting
+    pain: number;
+    water: number;
+    food?: string;
+    period: boolean;
+    pressure: number;
+    temp: number;
+    weatherDesc: string;
+    // New fields
+    sleepHours?: number;
+    sleepTime?: string;
+    wakeTime?: string;
+    stressLevel?: number;
+    stressPreviousDay?: number;
+    activityType?: string;
+    medName?: string;
+    medTime?: string;
+    medEffectiveness?: string;
+    environmentSmells?: string;
+    environmentLight?: string;
+    environmentNoise?: string;
+    mood?: string;
+  }
 
 export const WeatherService = {
   async getCurrentWeather() {
